@@ -1,0 +1,6 @@
+{
+  "client_id": "your-client-id-uuid",
+  "client_secret": "your-client-secret",
+  "agent_identity": "your-workload-name",
+  "agent_user_id": "default-user-id"
+}

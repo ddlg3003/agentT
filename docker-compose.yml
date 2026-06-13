@@ -1,0 +1,22 @@
+# Local demo stack: frontend (nginx) + backend (Go). For the MVP the backend
+# defaults to the in-process memory store; set the GREENNODE_* vars to use
+# AgentBase memory instead.
+services:
+  backend:
+    build: ./backend
+    environment:
+      PORT: "8080"
+      CORS_ALLOWED_ORIGINS: "http://localhost:8081"
+      MEMORY_BACKEND: "${MEMORY_BACKEND:-memory}"
+      GREENNODE_MEMORY_ID: "${GREENNODE_MEMORY_ID:-}"
+      GREENNODE_CLIENT_ID: "${GREENNODE_CLIENT_ID:-}"
+      GREENNODE_CLIENT_SECRET: "${GREENNODE_CLIENT_SECRET:-}"
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "8081:80"
