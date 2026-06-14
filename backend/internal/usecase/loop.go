@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/vngcloud/agentt/internal/domain/agent"
 	"github.com/vngcloud/agentt/internal/domain/digest"
@@ -64,16 +66,38 @@ func (l *agentLoop) run(ctx context.Context, messages []agent.Message) (loopResu
 	var sources []digest.Source
 
 	for turn := 0; turn < l.maxTurns; turn++ {
+		l.log.InfoContext(ctx, "→ calling model",
+			"turn", turn+1, "maxTurns", l.maxTurns, "messages", len(messages))
+
+		start := time.Now()
 		resp, err := l.llm.CompleteWithTools(ctx, messages, l.defs)
 		if err != nil {
+			l.log.ErrorContext(ctx, "✗ model call failed",
+				"turn", turn+1, "elapsed", time.Since(start).Round(time.Millisecond), "error", err)
 			return loopResult{}, fmt.Errorf("llm turn %d: %w", turn, err)
 		}
 		messages = append(messages, resp)
 
+		// Surface any thinking text the model emitted alongside its action.
+		if text := strings.TrimSpace(resp.Content); text != "" {
+			l.log.InfoContext(ctx, "← model said",
+				"turn", turn+1, "elapsed", time.Since(start).Round(time.Millisecond),
+				"text", preview(text, 200))
+		}
+
 		// No tool calls → the model is done. This is the stop signal.
 		if len(resp.ToolCalls) == 0 {
+			l.log.InfoContext(ctx, "✓ loop done — model returned final answer",
+				"turns", turn+1, "toolCalls", len(sources))
 			return loopResult{Final: resp, Sources: sources, Turns: turn + 1}, nil
 		}
+
+		names := make([]string, len(resp.ToolCalls))
+		for i, c := range resp.ToolCalls {
+			names[i] = c.Name
+		}
+		l.log.InfoContext(ctx, "⚙ model requested tools",
+			"turn", turn+1, "count", len(resp.ToolCalls), "tools", strings.Join(names, ","))
 
 		// Act: dispatch each requested tool sequentially and observe the result.
 		results := make([]agent.ToolResult, 0, len(resp.ToolCalls))
@@ -107,15 +131,20 @@ func (l *agentLoop) dispatch(ctx context.Context, call agent.ToolCall) (agent.To
 		}, nil
 	}
 
+	l.log.InfoContext(ctx, "  ↳ tool call", "tool", call.Name, "input", preview(string(call.Input), 160))
+
+	start := time.Now()
 	out, err := tool.Run(ctx, call.Input)
+	elapsed := time.Since(start).Round(time.Millisecond)
 	if err != nil {
-		l.log.Warn("tool failed", "tool", call.Name, "error", err)
+		l.log.WarnContext(ctx, "  ↳ tool failed", "tool", call.Name, "elapsed", elapsed, "error", err)
 		return agent.ToolResult{
 			CallID:  call.ID,
 			Content: fmt.Sprintf("[DATA UNAVAILABLE: %s failed: %v]", call.Name, err),
 			IsError: true,
 		}, nil
 	}
+	l.log.InfoContext(ctx, "  ↳ tool ok", "tool", call.Name, "elapsed", elapsed, "bytes", len(out))
 
 	src := &digest.Source{
 		ToolName: call.Name,
@@ -123,6 +152,16 @@ func (l *agentLoop) dispatch(ctx context.Context, call agent.ToolCall) (agent.To
 		Output:   jsonOutput(out),
 	}
 	return agent.ToolResult{CallID: call.ID, Content: out}, src
+}
+
+// preview trims a string to n runes (collapsing newlines) for tidy single-line
+// log fields — enough to see what the model/tool is doing without flooding logs.
+func preview(s string, n int) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) <= n {
+		return s
+	}
+	return s[:n] + "…"
 }
 
 // rawOrNull returns valid JSON for an audit record, defaulting empty input to

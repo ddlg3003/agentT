@@ -31,7 +31,6 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
-	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   deps.AllowedOrigins,
 		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodOptions},
@@ -48,20 +47,35 @@ func NewRouter(deps RouterDeps) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	// Timeouts are scoped by workload. Quick reads/writes get a short deadline;
+	// endpoints that run a multi-turn agent loop (daily/monthly synthesis,
+	// follow-up Q&A, chat) get a generous one — a 60s blanket timeout was
+	// cutting the daily loop off mid-run ("context deadline exceeded" + a
+	// superfluous WriteHeader from the timeout middleware).
+	const (
+		quickTimeout = 30 * time.Second
+		agentTimeout = 5 * time.Minute
+	)
+
 	// Frontend-facing REST API.
 	r.Route("/api/v1", func(api chi.Router) {
-		api.Post("/chat", chatHandler.Handle)
+		// Quick, non-LLM endpoints.
+		api.Group(func(q chi.Router) {
+			q.Use(middleware.Timeout(quickTimeout))
+			q.Get("/digests", digestHandler.ListDates)
+			q.Get("/digests/{date}", digestHandler.Get)
+			q.Patch("/digests/{date}/flag", digestHandler.Flag)
+		})
 
-		// Digest product endpoints.
-		api.Get("/digests", digestHandler.ListDates)
-		api.Get("/digests/{date}", digestHandler.Get)
-		api.Post("/digests/{date}/ask", digestHandler.Ask)
-		api.Patch("/digests/{date}/flag", digestHandler.Flag)
-
-		// Job triggers (dev) + monthly report.
-		api.Post("/jobs/daily", digestHandler.RunDaily)
-		api.Post("/jobs/monthly", digestHandler.MonthlyReport)
-		api.Get("/report/monthly/{ym}", digestHandler.MonthlyReport)
+		// Agent-loop endpoints — long deadline (many sequential LLM turns).
+		api.Group(func(loop chi.Router) {
+			loop.Use(middleware.Timeout(agentTimeout))
+			loop.Post("/chat", chatHandler.Handle)
+			loop.Post("/digests/{date}/ask", digestHandler.Ask)
+			loop.Post("/jobs/daily", digestHandler.RunDaily)
+			loop.Post("/jobs/monthly", digestHandler.MonthlyReport)
+			loop.Get("/report/monthly/{ym}", digestHandler.MonthlyReport)
+		})
 	})
 
 	// GreenNode AgentBase runtime contract. The agent entrypoint reuses the
