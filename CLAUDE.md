@@ -1,5 +1,10 @@
 # agentT — Claude Agent Guide
 
+## Working conventions
+
+- **Do not create git worktrees.** Work directly in the current checkout. Only
+  split off a worktree when the maintainer explicitly asks for one.
+
 ## What this is
 
 A Sales/PO Intelligence agent for the Cash Loan product. It runs daily agentic
