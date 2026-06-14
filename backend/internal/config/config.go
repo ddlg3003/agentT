@@ -24,6 +24,12 @@ type Config struct {
 	// GreenNodeNamespace scopes long-term records.
 	GreenNodeNamespace string
 
+	// MockDir is the base directory for the mock data tools read from
+	// (bi/, jira/, gitlab/, knowledge/). Swapped for real clients later.
+	MockDir string
+	// DigestDBPath is the SQLite file the digest store persists to.
+	DigestDBPath string
+
 	// LLMProvider selects the agent.LLMClient implementation: "echo" (stub,
 	// default), "anthropic" (Claude), or "openai". Auto-selects based on which
 	// API key is present when LLM_PROVIDER is unset.
@@ -60,6 +66,8 @@ func Load() Config {
 		MemoryBackend:      getenv("MEMORY_BACKEND", ""),
 		GreenNodeMemoryID:  getenv("GREENNODE_MEMORY_ID", ""),
 		GreenNodeNamespace: getenv("GREENNODE_MEMORY_NAMESPACE", "default"),
+		MockDir:            getenv("MOCK_DIR", "./mock"),
+		DigestDBPath:       getenv("DIGEST_DB_PATH", "./digests.db"),
 	}
 
 	// Default the backend: use GreenNode only when both credentials and a

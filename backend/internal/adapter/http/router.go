@@ -16,6 +16,7 @@ import (
 // RouterDeps are the dependencies the router needs to wire its handlers.
 type RouterDeps struct {
 	Chat           *usecase.ChatService
+	Digest         *usecase.DigestService
 	AllowedOrigins []string
 }
 
@@ -33,13 +34,14 @@ func NewRouter(deps RouterDeps) http.Handler {
 	r.Use(middleware.Timeout(60 * time.Second))
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   deps.AllowedOrigins,
-		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodOptions},
+		AllowedMethods:   []string{http.MethodGet, http.MethodPost, http.MethodPatch, http.MethodOptions},
 		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization"},
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
 
 	chatHandler := NewChatHandler(deps.Chat)
+	digestHandler := NewDigestHandler(deps.Digest)
 
 	// Liveness for the frontend / orchestrators.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
@@ -49,6 +51,17 @@ func NewRouter(deps RouterDeps) http.Handler {
 	// Frontend-facing REST API.
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Post("/chat", chatHandler.Handle)
+
+		// Digest product endpoints.
+		api.Get("/digests", digestHandler.ListDates)
+		api.Get("/digests/{date}", digestHandler.Get)
+		api.Post("/digests/{date}/ask", digestHandler.Ask)
+		api.Patch("/digests/{date}/flag", digestHandler.Flag)
+
+		// Job triggers (dev) + monthly report.
+		api.Post("/jobs/daily", digestHandler.RunDaily)
+		api.Post("/jobs/monthly", digestHandler.MonthlyReport)
+		api.Get("/report/monthly/{ym}", digestHandler.MonthlyReport)
 	})
 
 	// GreenNode AgentBase runtime contract. The agent entrypoint reuses the

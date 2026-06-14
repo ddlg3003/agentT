@@ -1,0 +1,37 @@
+[
+  {
+    "id": "!1201",
+    "title": "feat(tnex): full rollout embedded application flow to 100%",
+    "project": "loan-api",
+    "merged_at": "2026-03-09T06:40:00Z",
+    "linked_jira_tickets": ["LOAN-472"]
+  },
+  {
+    "id": "!1215",
+    "title": "fix(shb): increase eKYC provider timeout to 30s",
+    "project": "loan-api",
+    "merged_at": "2026-03-13T08:50:00Z",
+    "linked_jira_tickets": ["LOAN-451"]
+  },
+  {
+    "id": "!1220",
+    "title": "feat(cake): disable Payday product segment in funnel eligibility",
+    "project": "loan-eligibility",
+    "merged_at": "2026-03-14T02:30:00Z",
+    "linked_jira_tickets": ["LOAN-460"]
+  },
+  {
+    "id": "!1224",
+    "title": "refactor(tnex): move valid-rule check from init to submit",
+    "project": "loan-eligibility",
+    "merged_at": "2026-03-14T07:30:00Z",
+    "linked_jira_tickets": ["LOAN-470"]
+  },
+  {
+    "id": "!1230",
+    "title": "feat(cake): enable no-score segment scoring path",
+    "project": "loan-eligibility",
+    "merged_at": "2026-03-15T09:50:00Z",
+    "linked_jira_tickets": ["LOAN-465"]
+  }
+]

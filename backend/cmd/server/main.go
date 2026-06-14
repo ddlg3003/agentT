@@ -1,7 +1,6 @@
-// Command server is the composition root: it loads config, constructs the
-// concrete dependencies (LLM, memory repository), wires them into the use case
-// and HTTP delivery, and runs the server with graceful shutdown. This is the
-// only place where the wiring of interfaces to implementations happens.
+// Command server is the HTTP entry point. It loads config, builds the wired
+// application (app.Build is the single composition root), mounts the HTTP
+// delivery, and runs with graceful shutdown.
 package main
 
 import (
@@ -15,15 +14,11 @@ import (
 	"time"
 
 	"github.com/joho/godotenv"
-	"github.com/vngcloud/agentt/internal/config"
+
 	httpadapter "github.com/vngcloud/agentt/internal/adapter/http"
-	"github.com/vngcloud/agentt/internal/domain/agent"
-	"github.com/vngcloud/agentt/internal/domain/memory"
-	gnadapter "github.com/vngcloud/agentt/internal/infra/greennode"
-	"github.com/vngcloud/agentt/internal/infra/llm"
-	"github.com/vngcloud/agentt/internal/infra/memstore"
-	"github.com/vngcloud/agentt/internal/usecase"
-	gnmemory "github.com/vngcloud/agentt/pkg/greennode/memory"
+	"github.com/vngcloud/agentt/internal/app"
+	"github.com/vngcloud/agentt/internal/config"
+	"github.com/vngcloud/agentt/internal/scheduler"
 )
 
 func main() {
@@ -34,53 +29,27 @@ func main() {
 
 	cfg := config.Load()
 
-	// Select the memory backend. The use case is agnostic to which one.
-	var repo memory.Repository
-	switch cfg.MemoryBackend {
-	case "greennode":
-		repo = gnadapter.NewMemoryRepository(gnadapter.Config{
-			MemoryID:      cfg.GreenNodeMemoryID,
-			Namespace:     cfg.GreenNodeNamespace,
-			ClientOptions: gnmemory.Options{},
-		})
-		logger.Info("memory backend: greennode", "memoryID", cfg.GreenNodeMemoryID)
-	default:
-		repo = memstore.New()
-		logger.Info("memory backend: in-process (memstore)")
+	application, err := app.Build(cfg, logger)
+	if err != nil {
+		logger.Error("build application failed", "error", err)
+		os.Exit(1)
 	}
-
-	// Select the LLM provider. The use case only sees the agent.LLMClient port.
-	var llmClient agent.LLMClient
-	switch cfg.LLMProvider {
-	case "anthropic":
-		llmClient = llm.NewAnthropic(llm.AnthropicOptions{
-			APIKey:       cfg.Anthropic.APIKey,
-			BaseURL:      cfg.Anthropic.BaseURL,
-			Model:        cfg.Anthropic.Model,
-			MaxTokens:    cfg.Anthropic.MaxTokens,
-			SystemPrompt: cfg.Anthropic.SystemPrompt,
-		})
-		logger.Info("llm provider: anthropic", "model", cfg.Anthropic.Model, "baseURL", cfg.Anthropic.BaseURL)
-	case "openai":
-		llmClient = llm.NewOpenAI(llm.OpenAIOptions{
-			APIKey:       cfg.OpenAI.APIKey,
-			BaseURL:      cfg.OpenAI.BaseURL,
-			Model:        cfg.OpenAI.Model,
-			MaxTokens:    cfg.OpenAI.MaxTokens,
-			SystemPrompt: cfg.OpenAI.SystemPrompt,
-		})
-		logger.Info("llm provider: openai", "model", cfg.OpenAI.Model, "baseURL", cfg.OpenAI.BaseURL)
-	default:
-		llmClient = llm.NewEcho()
-		logger.Info("llm provider: echo (stub)")
-	}
-
-	chat := usecase.NewChatService(llmClient, repo)
+	defer func() { _ = application.Close() }()
 
 	router := httpadapter.NewRouter(httpadapter.RouterDeps{
-		Chat:           chat,
+		Chat:           application.Chat,
+		Digest:         application.Digest,
 		AllowedOrigins: cfg.AllowedOrigins,
 	})
+
+	// Daily scheduler: fires the digest job once per day at a fixed time. Its
+	// context is cancelled on shutdown so the goroutine exits cleanly.
+	schedCtx, schedCancel := context.WithCancel(context.Background())
+	defer schedCancel()
+	scheduler.NewDaily(func(ctx context.Context, date string) error {
+		_, err := application.Digest.GenerateDaily(ctx, date)
+		return err
+	}, logger).Start(schedCtx)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -107,6 +76,7 @@ func main() {
 	case sig := <-stop:
 		logger.Info("shutting down", "signal", sig.String())
 	}
+	schedCancel() // stop the daily scheduler
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

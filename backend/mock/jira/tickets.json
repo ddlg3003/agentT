@@ -1,0 +1,50 @@
+[
+  {
+    "id": "LOAN-451",
+    "title": "Fix: eKYC timeout causing application drop at Filling step",
+    "type": "bug",
+    "status": "done",
+    "partner": "SHB",
+    "closed_at": "2026-03-13T09:15:00Z"
+  },
+  {
+    "id": "LOAN-460",
+    "title": "Payday product shutdown — remove Payday segment from CAKE funnel",
+    "type": "incident",
+    "status": "done",
+    "partner": "CAKE",
+    "closed_at": "2026-03-14T03:00:00Z"
+  },
+  {
+    "id": "LOAN-465",
+    "title": "Launch no-score segment for CAKE whitelist",
+    "type": "feature",
+    "status": "done",
+    "partner": "CAKE",
+    "closed_at": "2026-03-15T10:30:00Z"
+  },
+  {
+    "id": "LOAN-470",
+    "title": "Rule migration: move valid-rule check from init to submit step (TNEX)",
+    "type": "feature",
+    "status": "done",
+    "partner": "TNEX",
+    "closed_at": "2026-03-14T08:00:00Z"
+  },
+  {
+    "id": "LOAN-472",
+    "title": "Embedded application flow full rollout 60% -> 100% (TNEX)",
+    "type": "feature",
+    "status": "done",
+    "partner": "TNEX",
+    "closed_at": "2026-03-09T07:00:00Z"
+  },
+  {
+    "id": "LOAN-480",
+    "title": "Investigate Search-bar traffic source decline (SHB)",
+    "type": "bug",
+    "status": "in_progress",
+    "partner": "SHB",
+    "closed_at": null
+  }
+]

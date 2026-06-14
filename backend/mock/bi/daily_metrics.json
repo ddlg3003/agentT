@@ -1,0 +1,36 @@
+{
+  "_comment": "Mock BI for the Cash Loan conversion funnel. Per-partner daily snapshots. Rates are fractions (0.21 = 21%). The query_bi tool filters by date range + partner and computes day-over-day and month-over-month deltas from these records.",
+  "metric_catalog": [
+    { "step": "s10", "key": "whitelist", "name": "Whitelist (#)", "unit": "#" },
+    { "step": "s20", "key": "traffic", "name": "Traffic (#)", "unit": "#" },
+    { "step": "s20s30", "key": "demand_rate", "name": "Demand Rate", "unit": "%" },
+    { "step": "s30s40", "key": "pass_rule_rate", "name": "Pass Rule Rate", "unit": "%" },
+    { "step": "s40s70", "key": "filling_rate", "name": "Filling Application Rate", "unit": "%" },
+    { "step": "s20s70", "key": "submission_rate", "name": "Submission Rate", "unit": "%" },
+    { "step": "be", "key": "approval_rate", "name": "Approval Rate", "unit": "%" },
+    { "step": "s100s120", "key": "signing_rate", "name": "Signing Rate", "unit": "%" },
+    { "step": "s20s120", "key": "e2e_rate", "name": "E2E Rate", "unit": "%" }
+  ],
+  "records": [
+    { "date": "2026-02-13", "partner": "SHB", "values": { "whitelist": 2000000, "traffic": 98000, "demand_rate": 0.34, "pass_rule_rate": 0.82, "filling_rate": 0.86, "submission_rate": 0.24, "approval_rate": 0.18, "signing_rate": 0.94, "e2e_rate": 0.035 } },
+    { "date": "2026-02-14", "partner": "SHB", "values": { "whitelist": 2000000, "traffic": 97000, "demand_rate": 0.34, "pass_rule_rate": 0.82, "filling_rate": 0.86, "submission_rate": 0.24, "approval_rate": 0.18, "signing_rate": 0.94, "e2e_rate": 0.035 } },
+    { "date": "2026-02-15", "partner": "SHB", "values": { "whitelist": 2000000, "traffic": 96000, "demand_rate": 0.33, "pass_rule_rate": 0.83, "filling_rate": 0.86, "submission_rate": 0.24, "approval_rate": 0.19, "signing_rate": 0.94, "e2e_rate": 0.036 } },
+    { "date": "2026-03-13", "partner": "SHB", "values": { "whitelist": 1900000, "traffic": 93000, "demand_rate": 0.30, "pass_rule_rate": 0.84, "filling_rate": 0.84, "submission_rate": 0.21, "approval_rate": 0.21, "signing_rate": 0.95, "e2e_rate": 0.037 } },
+    { "date": "2026-03-14", "partner": "SHB", "values": { "whitelist": 1900000, "traffic": 91000, "demand_rate": 0.30, "pass_rule_rate": 0.84, "filling_rate": 0.84, "submission_rate": 0.21, "approval_rate": 0.21, "signing_rate": 0.95, "e2e_rate": 0.037 } },
+    { "date": "2026-03-15", "partner": "SHB", "values": { "whitelist": 1900000, "traffic": 88000, "demand_rate": 0.29, "pass_rule_rate": 0.84, "filling_rate": 0.84, "submission_rate": 0.21, "approval_rate": 0.21, "signing_rate": 0.95, "e2e_rate": 0.037 } },
+
+    { "date": "2026-02-13", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 132000, "demand_rate": 0.64, "pass_rule_rate": 0.34, "filling_rate": 0.85, "submission_rate": 0.18, "approval_rate": 0.42, "signing_rate": 0.97, "e2e_rate": 0.057 } },
+    { "date": "2026-02-14", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 134000, "demand_rate": 0.64, "pass_rule_rate": 0.34, "filling_rate": 0.85, "submission_rate": 0.18, "approval_rate": 0.42, "signing_rate": 0.97, "e2e_rate": 0.057 } },
+    { "date": "2026-02-15", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 133000, "demand_rate": 0.63, "pass_rule_rate": 0.35, "filling_rate": 0.85, "submission_rate": 0.18, "approval_rate": 0.42, "signing_rate": 0.97, "e2e_rate": 0.057 } },
+    { "date": "2026-03-13", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 140000, "demand_rate": 0.63, "pass_rule_rate": 0.55, "filling_rate": 0.87, "submission_rate": 0.29, "approval_rate": 0.23, "signing_rate": 0.96, "e2e_rate": 0.054 } },
+    { "date": "2026-03-14", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 139000, "demand_rate": 0.58, "pass_rule_rate": 0.55, "filling_rate": 0.87, "submission_rate": 0.29, "approval_rate": 0.23, "signing_rate": 0.96, "e2e_rate": 0.052 } },
+    { "date": "2026-03-15", "partner": "CAKE", "values": { "whitelist": 2000000, "traffic": 141000, "demand_rate": 0.52, "pass_rule_rate": 0.55, "filling_rate": 0.87, "submission_rate": 0.29, "approval_rate": 0.22, "signing_rate": 0.96, "e2e_rate": 0.049 } },
+
+    { "date": "2026-02-13", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 351000, "demand_rate": 0.55, "pass_rule_rate": 0.52, "filling_rate": 0.85, "submission_rate": 0.24, "approval_rate": 0.12, "signing_rate": 0.99, "e2e_rate": 0.029 } },
+    { "date": "2026-02-14", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 360000, "demand_rate": 0.55, "pass_rule_rate": 0.52, "filling_rate": 0.85, "submission_rate": 0.24, "approval_rate": 0.12, "signing_rate": 0.99, "e2e_rate": 0.029 } },
+    { "date": "2026-02-15", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 355000, "demand_rate": 0.55, "pass_rule_rate": 0.52, "filling_rate": 0.85, "submission_rate": 0.24, "approval_rate": 0.12, "signing_rate": 0.99, "e2e_rate": 0.029 } },
+    { "date": "2026-03-13", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 680000, "demand_rate": 0.57, "pass_rule_rate": 0.62, "filling_rate": 0.87, "submission_rate": 0.31, "approval_rate": 0.10, "signing_rate": 0.99, "e2e_rate": 0.031 } },
+    { "date": "2026-03-14", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 695000, "demand_rate": 0.58, "pass_rule_rate": 0.63, "filling_rate": 0.87, "submission_rate": 0.32, "approval_rate": 0.10, "signing_rate": 0.99, "e2e_rate": 0.032 } },
+    { "date": "2026-03-15", "partner": "TNEX", "values": { "whitelist": 7000000, "traffic": 702000, "demand_rate": 0.58, "pass_rule_rate": 0.63, "filling_rate": 0.87, "submission_rate": 0.32, "approval_rate": 0.10, "signing_rate": 0.99, "e2e_rate": 0.032 } }
+  ]
+}
