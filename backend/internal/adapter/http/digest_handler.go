@@ -47,6 +47,22 @@ func (h *DigestHandler) Get(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, d)
 }
 
+// GetHistory serves GET /api/v1/digests/{date}/history?userId=… — returns the
+// persisted follow-up Q&A turns for a digest session, oldest-first.
+func (h *DigestHandler) GetHistory(w http.ResponseWriter, r *http.Request) {
+	date := chi.URLParam(r, "date")
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		userID = "demo-po"
+	}
+	turns, err := h.svc.GetFollowupHistory(r.Context(), date, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"turns": turns})
+}
+
 type askRequest struct {
 	UserID   string `json:"userId"`
 	Question string `json:"question"`

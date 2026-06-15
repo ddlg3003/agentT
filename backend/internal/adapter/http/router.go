@@ -64,6 +64,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 			q.Use(middleware.Timeout(quickTimeout))
 			q.Get("/digests", digestHandler.ListDates)
 			q.Get("/digests/{date}", digestHandler.Get)
+			q.Get("/digests/{date}/history", digestHandler.GetHistory)
 			q.Patch("/digests/{date}/flag", digestHandler.Flag)
 		})
 

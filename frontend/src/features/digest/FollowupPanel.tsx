@@ -1,12 +1,7 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { MarkdownView, Spinner } from "../../components/ui";
-import { useAskFollowup } from "./queries";
-
-interface Turn {
-  role: "po" | "agent";
-  text: string;
-}
+import { useAskFollowup, useFollowupHistory } from "./queries";
 
 const SUGGESTIONS = [
   "Why did SHB's E2E rate move?",
@@ -17,23 +12,31 @@ const SUGGESTIONS = [
 /** Conversational follow-up grounded in the selected digest. The agent may
  *  apply a PO correction via update_digest; queries invalidate on success. */
 export function FollowupPanel({ date }: { date: string }) {
-  const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
+  const [optimistic, setOptimistic] = useState<{ question: string; answer: string | null } | null>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const history = useFollowupHistory(date);
   const ask = useAskFollowup(date);
+
+  // Auto-scroll to bottom when history loads or a new turn is added.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [history.data?.length, optimistic]);
 
   function submit(question: string) {
     const q = question.trim();
     if (!q || ask.isPending) return;
-    setTurns((t) => [...t, { role: "po", text: q }]);
     setInput("");
+    setOptimistic({ question: q, answer: null });
     ask.mutate(q, {
-      onSuccess: (res) =>
-        setTurns((t) => [...t, { role: "agent", text: res.answer }]),
-      onError: (err) =>
-        setTurns((t) => [
-          ...t,
-          { role: "agent", text: `⚠️ ${err instanceof Error ? err.message : "request failed"}` },
-        ]),
+      onSuccess: () => setOptimistic(null),
+      onError: (err) => {
+        setOptimistic({
+          question: q,
+          answer: `⚠️ ${err instanceof Error ? err.message : "request failed"}`,
+        });
+      },
     });
   }
 
@@ -41,6 +44,9 @@ export function FollowupPanel({ date }: { date: string }) {
     e.preventDefault();
     submit(input);
   }
+
+  const turns = history.data ?? [];
+  const isEmpty = turns.length === 0 && !optimistic && !history.isLoading;
 
   return (
     <div className="flex h-full flex-col rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -50,7 +56,9 @@ export function FollowupPanel({ date }: { date: string }) {
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
-        {turns.length === 0 && (
+        {history.isLoading && <Spinner label="Loading history…" />}
+
+        {isEmpty && (
           <div className="space-y-2">
             <p className="text-sm text-slate-400">Ask why a number moved, or request a correction.</p>
             <div className="flex flex-col gap-1.5">
@@ -66,20 +74,40 @@ export function FollowupPanel({ date }: { date: string }) {
             </div>
           </div>
         )}
+
         {turns.map((t, i) =>
-          t.role === "po" ? (
+          t.role === "user" ? (
             <div key={i} className="text-right">
               <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-blue-600 px-3.5 py-2 text-sm text-white">
-                {t.text}
+                {t.content}
               </span>
             </div>
           ) : (
             <div key={i} className="rounded-2xl rounded-bl-sm bg-slate-50 px-3.5 py-2">
-              <MarkdownView>{t.text}</MarkdownView>
+              <MarkdownView>{t.content}</MarkdownView>
             </div>
           ),
         )}
-        {ask.isPending && <Spinner label="Thinking…" />}
+
+        {/* Optimistic question bubble while waiting for answer */}
+        {optimistic && (
+          <>
+            <div className="text-right">
+              <span className="inline-block max-w-[85%] rounded-2xl rounded-br-sm bg-blue-600 px-3.5 py-2 text-sm text-white">
+                {optimistic.question}
+              </span>
+            </div>
+            {optimistic.answer === null ? (
+              <Spinner label="Thinking…" />
+            ) : (
+              <div className="rounded-2xl rounded-bl-sm bg-slate-50 px-3.5 py-2">
+                <MarkdownView>{optimistic.answer}</MarkdownView>
+              </div>
+            )}
+          </>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
       <form onSubmit={onSubmit} className="flex gap-2 border-t border-slate-100 p-3">

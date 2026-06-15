@@ -21,10 +21,25 @@ var ErrMaxTurnsExceeded = errors.New("agent loop exceeded max turns")
 
 // loopResult is what one agentLoop.run produces: the model's final text message
 // plus the audit trail of every tool call made along the way.
+// CompactSummary is non-empty when in-loop context compaction fired; callers
+// that manage persistent history (e.g. the follow-up loop) should use it to
+// update their store rather than appending individual turns.
 type loopResult struct {
-	Final   agent.Message
-	Sources []digest.Source
-	Turns   int
+	Final          agent.Message
+	Sources        []digest.Source
+	Turns          int
+	CompactSummary string          // non-empty if compaction occurred
+	CompactRecent  []agent.Message // verbatim messages preserved after compact (excl. system / tool messages)
+}
+
+// compactConfig enables in-loop context compaction. When the non-system
+// message count crosses threshold, the loop calls the LLM once (no tools) to
+// summarise old messages, replaces them with a compact boundary, and continues.
+// Compaction fires at most once per run; failure is non-fatal and the loop
+// continues with the original messages.
+type compactConfig struct {
+	threshold  int // non-system message count that triggers compaction
+	keepRecent int // verbatim messages to preserve after the compact boundary
 }
 
 // agentLoop is the reusable think → act → observe engine shared by the daily,
@@ -36,6 +51,7 @@ type agentLoop struct {
 	tools    map[string]agent.Tool
 	defs     []agent.ToolDef
 	maxTurns int
+	compact  *compactConfig // nil = compaction disabled
 	log      *slog.Logger
 }
 
@@ -64,8 +80,19 @@ func newAgentLoop(llm agent.ToolCaller, tools []agent.Tool, maxTurns int, log *s
 // the safe choice.
 func (l *agentLoop) run(ctx context.Context, messages []agent.Message) (loopResult, error) {
 	var sources []digest.Source
+	var compactSummary string
+	var compactRecent []agent.Message
 
 	for turn := 0; turn < l.maxTurns; turn++ {
+		// Compact once when the context has grown past threshold. The flag
+		// (compactSummary != "") prevents a second compaction in the same run.
+		if l.compact != nil && compactSummary == "" {
+			if compacted, summary, recent, ok := l.maybeCompact(ctx, messages, turn); ok {
+				messages = compacted
+				compactSummary = summary
+				compactRecent = recent
+			}
+		}
 		l.log.InfoContext(ctx, "→ calling model",
 			"turn", turn+1, "maxTurns", l.maxTurns, "messages", len(messages))
 
@@ -89,7 +116,13 @@ func (l *agentLoop) run(ctx context.Context, messages []agent.Message) (loopResu
 		if len(resp.ToolCalls) == 0 {
 			l.log.InfoContext(ctx, "✓ loop done — model returned final answer",
 				"turns", turn+1, "toolCalls", len(sources))
-			return loopResult{Final: resp, Sources: sources, Turns: turn + 1}, nil
+			return loopResult{
+				Final:          resp,
+				Sources:        sources,
+				Turns:          turn + 1,
+				CompactSummary: compactSummary,
+				CompactRecent:  compactRecent,
+			}, nil
 		}
 
 		names := make([]string, len(resp.ToolCalls))
@@ -113,7 +146,87 @@ func (l *agentLoop) run(ctx context.Context, messages []agent.Message) (loopResu
 	}
 
 	l.log.Error("agent loop exceeded max turns", "maxTurns", l.maxTurns)
-	return loopResult{}, ErrMaxTurnsExceeded
+	// Return any compactSummary produced mid-run so callers can still persist
+	// the compact boundary — without it the next request reloads full
+	// pre-compact history, triggers compaction again, and hits max turns again.
+	return loopResult{CompactSummary: compactSummary}, ErrMaxTurnsExceeded
+}
+
+// maybeCompact checks whether messages have grown past the compact threshold
+// and, if so, calls the LLM once (no tools) to summarise the old messages.
+// Returns (compacted messages, summary, verbatim slice, true) on success, or
+// (nil, "", nil, false) if the threshold is not met or the summarisation fails.
+// The verbatim slice is the tail of non-system messages preserved as-is; the
+// caller stores this alongside the summary for session persistence.
+func (l *agentLoop) maybeCompact(ctx context.Context, messages []agent.Message, turn int) ([]agent.Message, string, []agent.Message, bool) {
+	// Count leading system messages.
+	sysEnd := 0
+	for _, m := range messages {
+		if m.Role != agent.RoleSystem {
+			break
+		}
+		sysEnd++
+	}
+	nonSys := messages[sysEnd:]
+	if len(nonSys) <= l.compact.threshold {
+		return nil, "", nil, false
+	}
+	keep := l.compact.keepRecent
+	if keep >= len(nonSys) {
+		return nil, "", nil, false
+	}
+	toSummarise := nonSys[:len(nonSys)-keep]
+	verbatim := nonSys[len(nonSys)-keep:]
+
+	// Build a plain-text representation of the messages to summarise.
+	// Tool-call assistant messages have empty Content (the data lives in
+	// ToolCalls/ToolResults), so we render those explicitly — otherwise the
+	// summarisation prompt contains only blank lines for every tool round-trip
+	// and the LLM cannot preserve key findings from those calls.
+	var b strings.Builder
+	b.WriteString("Summarize the following conversation excerpt into one compact paragraph. " +
+		"Preserve every factual correction, key finding, and conclusion. Omit pleasantries.\n\n")
+	for _, m := range toSummarise {
+		b.WriteString(string(m.Role))
+		b.WriteString(": ")
+		if m.Content != "" {
+			b.WriteString(preview(m.Content, 500))
+		}
+		for _, tc := range m.ToolCalls {
+			fmt.Fprintf(&b, " [tool_call:%s %s]", tc.Name, preview(string(tc.Input), 300))
+		}
+		for _, tr := range m.ToolResults {
+			if tr.IsError {
+				fmt.Fprintf(&b, " [tool_result:error %s]", preview(tr.Content, 300))
+			} else {
+				fmt.Fprintf(&b, " [tool_result %s]", preview(tr.Content, 300))
+			}
+		}
+		b.WriteByte('\n')
+	}
+
+	resp, err := l.llm.Complete(ctx, []agent.Message{{Role: agent.RoleUser, Content: b.String()}})
+	if err != nil {
+		l.log.WarnContext(ctx, "✂ compact summarize failed, continuing without compaction",
+			"turn", turn+1, "error", err)
+		return nil, "", nil, false
+	}
+	summary := resp.Content
+
+	// Rebuild: system + compact injection (user+assistant pair) + verbatim.
+	injection := []agent.Message{
+		{Role: agent.RoleUser, Content: "[Conversation summary]\n" + summary},
+		{Role: agent.RoleAssistant, Content: "Understood."},
+	}
+	result := make([]agent.Message, 0, sysEnd+len(injection)+len(verbatim))
+	result = append(result, messages[:sysEnd]...)
+	result = append(result, injection...)
+	result = append(result, verbatim...)
+
+	l.log.InfoContext(ctx, "✂ context compacted",
+		"turn", turn+1, "summarised", len(toSummarise), "kept", len(verbatim),
+		"summaryLen", len(summary))
+	return result, summary, verbatim, true
 }
 
 // dispatch runs one tool call. A missing tool or a tool error never aborts the

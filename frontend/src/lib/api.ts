@@ -59,6 +59,11 @@ export interface MonthlyReport {
   num_digests: number;
 }
 
+export interface FollowupTurn {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface ChatRequest {
   message: string;
   userId?: string;
@@ -97,6 +102,11 @@ export const api = {
     request<{ dates: string[] }>("/api/v1/digests").then((r) => r.dates ?? []),
 
   getDigest: (date: string) => request<DailyDigest>(`/api/v1/digests/${date}`),
+
+  getFollowupHistory: (date: string, userId = "demo-po") =>
+    request<{ turns: FollowupTurn[] }>(`/api/v1/digests/${date}/history?userId=${encodeURIComponent(userId)}`).then(
+      (r) => r.turns ?? [],
+    ),
 
   askFollowup: (date: string, question: string, userId = "demo-po") =>
     request<{ answer: string }>(`/api/v1/digests/${date}/ask`, {
