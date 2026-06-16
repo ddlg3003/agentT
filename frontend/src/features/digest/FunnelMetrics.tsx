@@ -66,7 +66,7 @@ export function FunnelMetrics({ metrics }: { metrics: Metric[] }) {
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div
                   className="h-full rounded-full bg-gradient-to-r from-blue-400 to-blue-600"
-                  style={{ width: `${Math.min(100, Math.max(2, m.value * 100))}%` }}
+                  style={{ width: `${Math.min(100, Math.max(2, m.value))}%` }}
                 />
               </div>
             )}

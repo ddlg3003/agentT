@@ -86,12 +86,12 @@ export function Spinner({ label, timed }: { label?: string; timed?: boolean }) {
   const quip = QUIPS[(startIdx + Math.floor(secs / 4)) % QUIPS.length];
 
   return (
-    <div className="flex items-center gap-2 text-sm text-slate-500">
-      <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+    <div className="flex items-center gap-2 overflow-hidden text-sm text-slate-500">
+      <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
       {timed ? (
-        <span>
-          {quip}
-          <span className="ml-1.5 font-mono text-xs tabular-nums text-slate-400">{secs}s</span>
+        <span className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
+          <span className="truncate">{quip}</span>
+          <span className="shrink-0 font-mono text-xs tabular-nums text-slate-400">{secs}s</span>
         </span>
       ) : (
         <span>{label ?? "Loading…"}</span>

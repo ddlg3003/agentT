@@ -2,7 +2,7 @@ import type { Metric } from "./api";
 
 /** Format a metric value respecting its unit ("%" → 21.0%, "#" → 97,000). */
 export function formatValue(m: Pick<Metric, "value" | "unit">): string {
-  if (m.unit === "%") return `${(m.value * 100).toFixed(1)}%`;
+  if (m.unit === "%") return `${m.value.toFixed(1)}%`;
   return Math.round(m.value).toLocaleString("en-US");
 }
 
@@ -10,7 +10,7 @@ export function formatValue(m: Pick<Metric, "value" | "unit">): string {
 export function formatDelta(delta: number, unit: string): string {
   if (Math.abs(delta) < 1e-9) return "0";
   const sign = delta > 0 ? "+" : "−";
-  if (unit === "%") return `${sign}${Math.abs(delta * 100).toFixed(1)}pp`;
+  if (unit === "%") return `${sign}${Math.abs(delta).toFixed(1)}pp`;
   return `${sign}${Math.abs(Math.round(delta)).toLocaleString("en-US")}`;
 }
 
