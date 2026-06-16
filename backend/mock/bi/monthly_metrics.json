@@ -1,0 +1,96 @@
+{
+  "metric_catalog": [
+    {
+      "step": "s20",
+      "key": "traffic",
+      "name": "Traffic (#)",
+      "unit": "#"
+    },
+    {
+      "step": "s20s30",
+      "key": "demand_rate",
+      "name": "Demand Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s30s40",
+      "key": "pass_rule_rate",
+      "name": "Pass Rule Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s40s70",
+      "key": "filling_rate",
+      "name": "Filling Application Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s20s70",
+      "key": "submission_rate",
+      "name": "Submission Rate",
+      "unit": "%"
+    },
+    {
+      "step": "be",
+      "key": "approval_rate",
+      "name": "Approval Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s100s120",
+      "key": "signing_rate",
+      "name": "Signing Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s20s120",
+      "key": "e2e_rate",
+      "name": "E2E Rate",
+      "unit": "%"
+    }
+  ],
+  "records": [
+    {
+      "date": "2026-04",
+      "partner": "CAKE",
+      "values": {
+        "traffic": 7768,
+        "demand_rate": 0.5454,
+        "pass_rule_rate": 0.8121,
+        "filling_rate": 0.8864,
+        "submission_rate": 0.3926,
+        "signing_rate": 0.94,
+        "e2e_rate": 0.0303,
+        "approval_rate": 0.0938
+      }
+    },
+    {
+      "date": "2026-04",
+      "partner": "SHB",
+      "values": {
+        "traffic": 5051,
+        "demand_rate": 0.2376,
+        "pass_rule_rate": 0.865,
+        "filling_rate": 0.8343,
+        "submission_rate": 0.1715,
+        "signing_rate": 0.9685,
+        "e2e_rate": 0.0244,
+        "approval_rate": 0.2252
+      }
+    },
+    {
+      "date": "2026-04",
+      "partner": "TNEX",
+      "values": {
+        "traffic": 19325,
+        "demand_rate": 0.4455,
+        "pass_rule_rate": 0.4912,
+        "filling_rate": 0.7647,
+        "submission_rate": 0.1673,
+        "signing_rate": 0.9731,
+        "e2e_rate": 0.0168,
+        "approval_rate": 0.1096
+      }
+    }
+  ]
+}

@@ -11,7 +11,9 @@ func TestBIRunDeltas(t *testing.T) {
 	t.Parallel()
 	bi := NewBI("../../../mock")
 
-	out, err := bi.Run(context.Background(), json.RawMessage(`{"from":"2026-03-15","to":"2026-03-15","partners":["SHB"]}`))
+	// Real data (daily_metrics.from_events.json) has adjacent days 04-11 and 04-12
+	// for SHB, so day-over-day deltas are exercised; there is no month-earlier pair.
+	out, err := bi.Run(context.Background(), json.RawMessage(`{"from":"2026-04-12","to":"2026-04-12","partners":["SHB"]}`))
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -25,6 +27,8 @@ func TestBIRunDeltas(t *testing.T) {
 				Value    float64 `json:"value"`
 				DeltaDay float64 `json:"delta_day"`
 				DeltaMoM float64 `json:"delta_mom"`
+				HasDay   bool    `json:"has_delta_day"`
+				HasMoM   bool    `json:"has_delta_mom"`
 			} `json:"metrics"`
 		} `json:"data"`
 	}
@@ -35,28 +39,33 @@ func TestBIRunDeltas(t *testing.T) {
 		t.Fatalf("data len = %d, want 1", len(resp.Data))
 	}
 	rec := resp.Data[0]
-	if rec.Partner != "SHB" || rec.Date != "2026-03-15" {
+	if rec.Partner != "SHB" || rec.Date != "2026-04-12" {
 		t.Fatalf("unexpected record %s/%s", rec.Partner, rec.Date)
 	}
 
-	var e2e *float64
-	var mom float64
+	var found bool
 	for _, m := range rec.Metrics {
-		if m.Key == "e2e_rate" {
-			v := m.Value
-			e2e = &v
-			mom = m.DeltaMoM
+		if m.Key != "e2e_rate" {
+			continue
+		}
+		found = true
+		if m.Value != 0.0303 {
+			t.Errorf("e2e value = %v, want 0.0303", m.Value)
+		}
+		// delta_day = 0.0303 (04-12) - 0.0519 (04-11) = -0.0216
+		if !m.HasDay {
+			t.Errorf("expected day-over-day delta to be present")
+		}
+		if m.DeltaDay != -0.0216 {
+			t.Errorf("e2e delta_day = %v, want -0.0216", m.DeltaDay)
+		}
+		// No 2026-03-12 record exists, so MoM must be absent.
+		if m.HasMoM {
+			t.Errorf("expected no month-over-month delta, got %v", m.DeltaMoM)
 		}
 	}
-	if e2e == nil {
+	if !found {
 		t.Fatal("e2e_rate metric not found")
-	}
-	if *e2e != 0.037 {
-		t.Errorf("e2e value = %v, want 0.037", *e2e)
-	}
-	// MoM = 0.037 (Mar-15) - 0.036 (Feb-15) = 0.001
-	if mom != 0.001 {
-		t.Errorf("e2e delta_mom = %v, want 0.001", mom)
 	}
 }
 

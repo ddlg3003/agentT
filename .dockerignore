@@ -1,0 +1,11 @@
+backend/mock/bi/event_mart_anon.csv
+**/node_modules
+**/.env
+**/*.db
+backend/bin
+frontend/dist
+.git
+.claude
+*.pdf
+.greennode.json
+.agentbase/

@@ -24,6 +24,9 @@ type Config struct {
 	// GreenNodeNamespace scopes long-term records.
 	GreenNodeNamespace string
 
+	// StaticDir, if non-empty, serves the built frontend from this directory
+	// (SPA fallback to index.html). Set STATIC_DIR=/app/dist in production.
+	StaticDir string
 	// MockDir is the base directory for the mock data tools read from
 	// (bi/, jira/, gitlab/, knowledge/). Swapped for real clients later.
 	MockDir string
@@ -63,6 +66,7 @@ func Load() Config {
 	cfg := Config{
 		Port:               getenv("PORT", "8080"),
 		AllowedOrigins:     splitCSV(getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")),
+		StaticDir:          getenv("STATIC_DIR", ""),
 		MemoryBackend:      getenv("MEMORY_BACKEND", ""),
 		GreenNodeMemoryID:  getenv("GREENNODE_MEMORY_ID", ""),
 		GreenNodeNamespace: getenv("GREENNODE_MEMORY_NAMESPACE", "default"),

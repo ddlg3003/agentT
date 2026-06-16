@@ -56,7 +56,7 @@ Output ONLY a single JSON object — no prose before or after it, optionally ins
   "events": [
     {"source":"jira","id":"LOAN-451","title":"...","type":"bug","status":"done","occurred_at":"2026-03-13","linked_tickets":[]}
   ],
-  "reasoning": "Concise narrative grouped per partner, with evidence for each movement."
+  "reasoning": "Narrative grouped per partner. Start each partner section with **PARTNER:** on its own paragraph. Separate partner sections with a blank line (\\n\\n). Example: '**SHB:** ...[analysis]\\n\\n**CAKE:** ...[analysis]'"
 }
 ```
 

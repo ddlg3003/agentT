@@ -1,113 +1,89 @@
-# AgentT — Sales / PO Intelligence Agent (MVP)
+# agentT — Sales / PO Intelligence Agent
 
-A daily-run **agentic system** that helps a Product Owner understand the Cash Loan
-product. Every day it reads the numbers (BI), the work that shipped (Jira / Gitlab),
-and the business rules, then reasons over them to produce a **Daily Digest**: what
-moved in the conversion funnel, and *why* — with every number traceable to its source.
+A daily-run agentic system that helps a Product Owner understand the Cash Loan product. Every day it reads BI metrics, shipped work (Jira / GitLab), and business rules, then reasons over them to produce a **Daily Digest**: what moved in the per-partner conversion funnel and *why* — with every number traceable to its source.
 
-The PO can ask follow-up questions about a digest, correct it in conversation, and at
-month end the agent synthesizes all digests into a **month-over-month report** per
-partner.
+The PO can ask follow-up questions, correct the digest in conversation, and at month-end the agent synthesizes all daily digests into a **month-over-month report** per partner.
 
-> **MVP note:** all external data sources (BI / Jira / Gitlab / knowledge base) are
-> mocked. They sit behind tool ports, so swapping in real clients later does **not**
-> touch the agent loop or prompts.
+> All external data sources (BI / Jira / GitLab / knowledge base) are mocked today. They sit behind tool ports — swapping in real clients later does **not** touch the agent loop or prompts.
 
 ---
 
-## What it does
+## System Design
 
+```mermaid
+graph LR
+    UI["Frontend<br/>React + Vite"] --> API["HTTP API<br/>/api/v1/*"]
+    SCHED["Scheduler<br/>@ 06:00"] --> DAILY
+
+    API --> DAILY["GenerateDaily"]
+    API --> FOLLOWUP["AskFollowup"]
+    API --> MONTHLY["GenerateMonthly"]
+
+    subgraph Harness["Agent Harness"]
+        direction LR
+        LLM["LLM<br/>Claude / OpenAI"]
+
+        subgraph Loop["Agent Loop"]
+            direction LR
+            THINK["Think"] --> ACT["Act"] --> OBSERVE["Observe"]
+            OBSERVE -.->|"↺"| THINK
+        end
+
+        subgraph ToolBox["Tools"]
+            direction TB
+            BI["query_bi"]
+            JIRA["query_jira"]
+            GITLAB["query_gitlab"]
+            KNOW["get_knowledge"]
+            UPD["update_digest ①"]
+        end
+
+        LLM <--> THINK
+        ACT <--> ToolBox
+    end
+
+    DAILY & FOLLOWUP & MONTHLY --> Harness
+    Harness --> DB[("SQLite")]
+    FOLLOWUP --> MEM[("Memory store")]
 ```
-        ┌─────────────────────────── daily (auto @ 06:00, or PO clicks "create digest")
-        ▼
-   ┌─────────┐   query_bi / query_jira / query_gitlab / get_knowledge
-   │  AGENT  │ ◀──────────────────────────────────────────────►  mock data
-   │  LOOP   │   think → act → observe → repeat
-   └─────────┘
-        │  produces
-        ▼
-   ┌───────────────┐        ┌──────────────────┐        ┌────────────────────┐
-   │  Daily Digest │  ───▶  │  Follow-up Q&A    │  ───▶  │  Monthly Rollup     │
-   │  (per-partner │        │  + PO corrections │        │  (MoM report per    │
-   │   funnel)     │        │  (can edit digest)│        │   partner)          │
-   └───────────────┘        └──────────────────┘        └────────────────────┘
-        │ persisted to SQLite (with full audit trail of every tool call)
-```
 
-### The domain: a per-partner conversion funnel
+> ① `update_digest` is wired **only** into the follow-up loop and scoped to a single digest by code — the model cannot write anywhere else.
 
-The product is a Cash Loan funnel, tracked per partner (SHB / CAKE / TNEX / VP …),
-month-over-month. The agent reasons over these steps:
-
-| Step | Metric | |
-|------|--------|--|
-| s10 | Whitelist (#) | eligible user pool |
-| s20 | Traffic (#) | users who arrived |
-| s20s30 | Demand Rate | expressed borrowing demand |
-| s30s40 | Pass Rule Rate | passed eligibility rules |
-| s40s70 | Filling Rate | completed the form |
-| s20s70 | Submission Rate | submitted an application |
-| (BE) | Approval Rate | approved / submitted |
-| s100s120 | Signing Rate | signed the contract |
-| **s20s120** | **E2E Rate** | **headline: signed / traffic** |
-
-It correlates each movement with an event (a ticket or merge request) or a business
-rule — and is constrained to **not invent causality** without that evidence.
-
-### Three things that make the digest trustworthy
-
-1. **Traceability** — the loop records every tool call (input + output) into the
-   digest's `sources`. Any number is answerable in two clicks: "where did this come
-   from?"
-2. **PO corrections are audited** — when the PO corrects a number via Q&A, the
-   original value is preserved in `corrections`; nothing is silently overwritten.
-3. **Read-only by design** — the agent can only read external sources. The single
-   write tool mutates *only* the digest store, and only in the follow-up loop.
+The loop engine is shared across all three use cases. It stops when the model returns a message with no tool calls (never on `stop_reason`), enforces a hard turn limit, and records every tool call into the digest's audit trail automatically.
 
 ---
 
-## How it works (design)
+## Further Steps
 
-One reusable **agent loop** (`internal/usecase/loop.go`), three invocations that differ
-only in their prompt and tool set:
-
-| Loop | Tools | Writes? |
-|------|-------|---------|
-| **Daily digest** | `query_bi`, `query_jira`, `query_gitlab`, `get_knowledge` | no (read-only) |
-| **Follow-up Q&A** | the 4 read tools **+ `update_digest`** | digest store only |
-| **Monthly rollup** | read tools (mainly the stored digests) | no |
-
-Loop guarantees (from the agentic-harness design principles):
-- stops on **content** (no tool calls), never the provider's `stop_reason`;
-- **hard turn limit** → explicit error, never a silent partial digest;
-- a failing tool returns `[DATA UNAVAILABLE: …]` and the loop continues;
-- tools are sequential and read-only **by code**, not by instruction.
-
-Architecture is hexagonal — `domain ← usecase ← adapter/infra`. The LLM, the digest
-store, and the tools are all swappable behind ports. See [`CLAUDE.md`](./CLAUDE.md)
-for the full layout and rules.
+- **Frontend digest UI** — list view, per-date digest reader, ask / monthly report pages (the current frontend is the chat scaffold only).
+- **Real data sources** — replace mock tool `Run` implementations with live BI SQL, Jira REST, and GitLab API clients; the agent loop and prompts stay identical.
+- **Monthly rollup as a background job** — add status polling so the long synthesis does not block the HTTP response.
+- **Streaming responses** — stream LLM tokens to the frontend for snappier follow-up Q&A.
+- **Multi-tenant** — scope digests and memory by team / product line, not just by date.
 
 ---
 
-## Run it locally
+## How to Run
 
-**Prereqs:** Go 1.24+, Node 22+, pnpm (`corepack enable`).
+### Prerequisites
 
-The agent loops need a **tool-calling model**. Set an API key first — the `echo` stub
-keeps the server up but cannot produce real digests.
+- Go 1.24+
+- Node 22+ with pnpm (`corepack enable`)
+- An API key for a **tool-calling model** (Claude or OpenAI-compatible). The `echo` stub keeps the server running but cannot produce real digests.
+
+### Backend
 
 ```bash
 cd backend
 cp .env.example .env
-# edit .env: set ANTHROPIC_API_KEY=sk-ant-...   (or OPENAI_API_KEY=...)
+# Set ANTHROPIC_API_KEY=sk-ant-...  (or OPENAI_API_KEY=...)
 ```
 
 ```bash
-# backend → http://localhost:8080  (reads backend/.env automatically)
-make be-run
+make be-run        # → http://localhost:8080
 ```
 
-The startup log confirms the wiring:
+Expected startup log:
 
 ```
 llm provider: anthropic
@@ -116,116 +92,67 @@ daily scheduler started  at=06:00 local
 server listening  addr=:8080
 ```
 
-### Generate a digest and explore it
-
-```bash
-# 1) Create a daily digest (the PO "create digest" action; data exists for 2026-03-15)
-curl -s -X POST localhost:8080/api/v1/jobs/daily \
-  -H 'Content-Type: application/json' -d '{"date":"2026-03-15"}' | jq
-
-# 2) List dates that have a digest
-curl -s localhost:8080/api/v1/digests | jq
-
-# 3) Read the full digest (metrics, events, reasoning, sources)
-curl -s localhost:8080/api/v1/digests/2026-03-15 | jq
-
-# 4) Ask a follow-up question
-curl -s -X POST localhost:8080/api/v1/digests/2026-03-15/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"userId":"po@vng","question":"Why did CAKE demand rate drop?"}' | jq
-
-# 5) Correct a number (PO in the loop) — original value is kept in the audit trail
-curl -s -X POST localhost:8080/api/v1/digests/2026-03-15/ask \
-  -H 'Content-Type: application/json' \
-  -d '{"userId":"po@vng","question":"The SHB E2E rate is wrong, it should be 4.5%. Please fix it."}' | jq
-
-# 6) Generate the monthly report once you have several digests for a month
-curl -s localhost:8080/api/v1/report/monthly/2026-03 | jq -r .markdown
-```
-
-> Generate a few March dates (`2026-03-13`, `-14`, `-15`) before the monthly rollup —
-> it synthesizes whatever digests are stored for the month.
-
 ### Frontend
 
 ```bash
 make fe-install
-make fe-dev        # http://localhost:5173  (proxies /api → backend)
+make fe-dev        # → http://localhost:5173  (proxies /api → backend)
 ```
 
-*(The digest UI is the next step; the current frontend ships the chat scaffold.)*
+### Docker (full stack)
 
----
+```bash
+make up            # docker compose up --build
+make down
+```
 
-## API
+### Try it out
 
-| Method | Path | Purpose |
-|--------|------|---------|
-| `GET` | `/api/v1/digests` | list dates that have a digest |
-| `GET` | `/api/v1/digests/{date}` | full Daily Digest |
-| `POST` | `/api/v1/digests/{date}/ask` | follow-up Q&A (may apply a PO correction) |
-| `PATCH` | `/api/v1/digests/{date}/flag` | flag a digest as incorrect |
-| `POST` | `/api/v1/jobs/daily` | run the daily job for a date |
-| `POST` | `/api/v1/jobs/monthly` | run the monthly rollup |
-| `GET` | `/api/v1/report/monthly/{ym}` | monthly report (`ym` = `2026-03`) |
+```bash
+# Create a daily digest (mock data exists for 2026-03-15)
+curl -s -X POST localhost:8080/api/v1/jobs/daily \
+  -H 'Content-Type: application/json' \
+  -d '{"date":"2026-03-15"}' | jq
 
-The daily job also runs **automatically once per day** at a fixed local time
-(`internal/scheduler`); `POST /jobs/daily` is the manual / on-demand trigger.
+# Read the digest
+curl -s localhost:8080/api/v1/digests/2026-03-15 | jq
 
----
+# Ask a follow-up question
+curl -s -X POST localhost:8080/api/v1/digests/2026-03-15/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"po@vng","question":"Why did CAKE demand rate drop?"}' | jq
 
-## Configuration
+# Correct a number (original value is kept in the audit trail)
+curl -s -X POST localhost:8080/api/v1/digests/2026-03-15/ask \
+  -H 'Content-Type: application/json' \
+  -d '{"userId":"po@vng","question":"The SHB E2E rate is wrong, it should be 4.5%. Please fix it."}' | jq
 
-| Var | Purpose | Default |
-|-----|---------|---------|
+# Generate a monthly rollup (create a few March dates first)
+curl -s localhost:8080/api/v1/report/monthly/2026-03 | jq -r .markdown
+```
+
+### Configuration
+
+| Variable | Purpose | Default |
+|----------|---------|---------|
 | `PORT` | backend port | `8080` |
-| `LLM_PROVIDER` | `anthropic` / `openai` / `echo` | auto from API key |
+| `LLM_PROVIDER` | `anthropic` / `openai` / `echo` | auto-detected from API key |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Claude provider | — / `claude-opus-4-8` |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | OpenAI-compatible provider | — / `gpt-4o` |
 | `MOCK_DIR` | base dir for mock data tools | `./mock` |
 | `DIGEST_DB_PATH` | SQLite digest store path | `./digests.db` |
 | `MEMORY_BACKEND` | `memory` (in-process) / `greennode` | auto |
 
-See [`backend/.env.example`](./backend/.env.example) for the full list, including the
-GreenNode AgentBase memory backend.
+See [`backend/.env.example`](./backend/.env.example) for the full list.
 
----
-
-## Project layout
+### Makefile targets
 
 ```
-backend/   Go 1.24, hexagonal architecture (module github.com/vngcloud/agentt)
-  cmd/server/                HTTP entry point
-  internal/app/              composition root — wires everything
-  internal/usecase/          agent loop + daily / followup / monthly + embedded prompts
-  internal/domain/           ports & entities: agent (LLM + tools), digest, memory
-  internal/infra/            llm (anthropic/openai/echo), tools, digeststore (SQLite)
-  internal/scheduler/        daily job scheduler
-  mock/                      mock BI / Jira / Gitlab / knowledge data
-  pkg/greennode/             vendor-isolated AgentBase SDK (deploy + memory)
-frontend/  React 18 + Vite + TypeScript
-```
-
-## Develop
-
-```bash
+make be-run      # run backend
+make be-build    # build binary → backend/bin/server
 make be-test     # go test -race ./...
 make be-vet      # go vet
-make be-build    # build binary → backend/bin/server
-make up          # docker demo stack
+make fe-dev      # Vite dev server
+make fe-build    # type-check + production build
+make up / down   # docker compose
 ```
-
-To add a real data source, reimplement a tool's `Run` in `internal/infra/tools/`.
-To add an LLM provider, implement `agent.ToolCaller` in `internal/infra/llm/` and wire
-it in `internal/app`. Nothing in the agent loop changes.
-
----
-
-## Status
-
-- ✅ Backend MVP: daily / follow-up / monthly loops, SQLite persistence, PO
-  corrections with audit trail, daily scheduler + manual trigger, REST API.
-- ✅ Tool-calling for Anthropic and OpenAI; tested with `-race`.
-- ⏳ Frontend digest UI (list / view / ask / monthly report).
-- ⏳ Swap mock tools for real BI / Jira / Gitlab clients.
-- ⏳ Monthly rollup as a background job with status polling (currently synchronous).

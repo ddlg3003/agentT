@@ -82,7 +82,11 @@ func (b *BI) Run(_ context.Context, input json.RawMessage) (string, error) {
 		return "", fmt.Errorf("invalid to date %q: %w", in.To, err)
 	}
 
-	raw, err := b.fs.readFile("bi", "daily_metrics.json")
+	// daily_metrics.from_events.json is produced by scripts/aggregate_funnel.py
+	// from the anonymized production event mart — the script→file→tool pipeline
+	// is reproducible. (daily_metrics.synthetic.json holds the old hand-made demo
+	// data, kept for reference but no longer read.)
+	raw, err := b.fs.readFile("bi", "daily_metrics.from_events.json")
 	if err != nil {
 		return "", err
 	}

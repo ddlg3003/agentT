@@ -26,3 +26,4 @@ greennode_agentbase-*/
 .idea/
 .vscode/
 *.swp
+.agentbase/

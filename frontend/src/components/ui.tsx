@@ -90,11 +90,15 @@ export function Card({
   );
 }
 
+function stripThinkBlocks(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+}
+
 /** Markdown renderer with prose styling tuned for the blue theme. */
 export function MarkdownView({ children }: { children: string }) {
   return (
     <div className="prose-blue max-w-none text-sm leading-relaxed text-slate-700">
-      <Markdown remarkPlugins={[remarkGfm]}>{children}</Markdown>
+      <Markdown remarkPlugins={[remarkGfm]}>{stripThinkBlocks(children)}</Markdown>
     </div>
   );
 }

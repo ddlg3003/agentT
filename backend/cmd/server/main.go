@@ -40,6 +40,7 @@ func main() {
 		Chat:           application.Chat,
 		Digest:         application.Digest,
 		AllowedOrigins: cfg.AllowedOrigins,
+		StaticDir:      cfg.StaticDir,
 	})
 
 	// Daily scheduler: fires the digest job once per day at a fixed time. Its

@@ -3,6 +3,8 @@ package http
 import (
 	"encoding/json"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -18,6 +20,8 @@ type RouterDeps struct {
 	Chat           *usecase.ChatService
 	Digest         *usecase.DigestService
 	AllowedOrigins []string
+	// StaticDir, if non-empty, serves the built frontend with SPA fallback.
+	StaticDir string
 }
 
 // NewRouter builds the application's HTTP handler. It serves two contracts from
@@ -109,5 +113,24 @@ func NewRouter(deps RouterDeps) http.Handler {
 	))
 	r.Method(http.MethodGet, "/health", gnruntime.HealthHandler(nil))
 
+	// Serve built frontend (SPA). Registered last so API routes take priority.
+	if deps.StaticDir != "" {
+		r.Handle("/*", spaHandler(deps.StaticDir))
+	}
+
 	return r
+}
+
+// spaHandler serves static files from dir, falling back to index.html for
+// any path that doesn't match a real file (React Router / SPA routing).
+func spaHandler(dir string) http.Handler {
+	fileServer := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 }

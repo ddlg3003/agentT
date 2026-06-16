@@ -1,0 +1,180 @@
+{
+  "metric_catalog": [
+    {
+      "step": "s20",
+      "key": "traffic",
+      "name": "Traffic (#)",
+      "unit": "#"
+    },
+    {
+      "step": "s20s30",
+      "key": "demand_rate",
+      "name": "Demand Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s30s40",
+      "key": "pass_rule_rate",
+      "name": "Pass Rule Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s40s70",
+      "key": "filling_rate",
+      "name": "Filling Application Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s20s70",
+      "key": "submission_rate",
+      "name": "Submission Rate",
+      "unit": "%"
+    },
+    {
+      "step": "be",
+      "key": "approval_rate",
+      "name": "Approval Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s100s120",
+      "key": "signing_rate",
+      "name": "Signing Rate",
+      "unit": "%"
+    },
+    {
+      "step": "s20s120",
+      "key": "e2e_rate",
+      "name": "E2E Rate",
+      "unit": "%"
+    }
+  ],
+  "records": [
+    {
+      "date": "2026-04-01",
+      "partner": "CAKE",
+      "values": {
+        "traffic": 4407,
+        "demand_rate": 0.5217,
+        "pass_rule_rate": 0.8351,
+        "filling_rate": 0.8859,
+        "submission_rate": 0.386,
+        "signing_rate": 0.9384,
+        "e2e_rate": 0.0311,
+        "approval_rate": 0.0967
+      }
+    },
+    {
+      "date": "2026-04-01",
+      "partner": "SHB",
+      "values": {
+        "traffic": 3415,
+        "demand_rate": 0.2305,
+        "pass_rule_rate": 0.8818,
+        "filling_rate": 0.8674,
+        "submission_rate": 0.1763,
+        "signing_rate": 0.9718,
+        "e2e_rate": 0.0202,
+        "approval_rate": 0.1757
+      }
+    },
+    {
+      "date": "2026-04-01",
+      "partner": "TNEX",
+      "values": {
+        "traffic": 9022,
+        "demand_rate": 0.4113,
+        "pass_rule_rate": 0.4756,
+        "filling_rate": 0.715,
+        "submission_rate": 0.1399,
+        "signing_rate": 0.9708,
+        "e2e_rate": 0.0147,
+        "approval_rate": 0.1169
+      }
+    },
+    {
+      "date": "2026-04-11",
+      "partner": "CAKE",
+      "values": {
+        "traffic": 232,
+        "demand_rate": 0.5647,
+        "pass_rule_rate": 0.8168,
+        "filling_rate": 0.8972,
+        "submission_rate": 0.4138,
+        "signing_rate": 1.0,
+        "e2e_rate": 0.0388,
+        "approval_rate": 0.1154
+      }
+    },
+    {
+      "date": "2026-04-11",
+      "partner": "SHB",
+      "values": {
+        "traffic": 77,
+        "demand_rate": 0.2857,
+        "pass_rule_rate": 0.8182,
+        "filling_rate": 0.7222,
+        "submission_rate": 0.1688,
+        "signing_rate": 1.0,
+        "e2e_rate": 0.0519,
+        "approval_rate": 0.5714
+      }
+    },
+    {
+      "date": "2026-04-11",
+      "partner": "TNEX",
+      "values": {
+        "traffic": 729,
+        "demand_rate": 0.4184,
+        "pass_rule_rate": 0.4262,
+        "filling_rate": 0.7846,
+        "submission_rate": 0.1399,
+        "signing_rate": 1.0,
+        "e2e_rate": 0.0055,
+        "approval_rate": 0.0435
+      }
+    },
+    {
+      "date": "2026-04-12",
+      "partner": "CAKE",
+      "values": {
+        "traffic": 3310,
+        "demand_rate": 0.5665,
+        "pass_rule_rate": 0.7771,
+        "filling_rate": 0.884,
+        "submission_rate": 0.3891,
+        "signing_rate": 0.9355,
+        "e2e_rate": 0.0263,
+        "approval_rate": 0.086
+      }
+    },
+    {
+      "date": "2026-04-12",
+      "partner": "SHB",
+      "values": {
+        "traffic": 1619,
+        "demand_rate": 0.2415,
+        "pass_rule_rate": 0.8338,
+        "filling_rate": 0.7699,
+        "submission_rate": 0.155,
+        "signing_rate": 0.9608,
+        "e2e_rate": 0.0303,
+        "approval_rate": 0.3469
+      }
+    },
+    {
+      "date": "2026-04-12",
+      "partner": "TNEX",
+      "values": {
+        "traffic": 9808,
+        "demand_rate": 0.4742,
+        "pass_rule_rate": 0.5014,
+        "filling_rate": 0.7972,
+        "submission_rate": 0.1895,
+        "signing_rate": 0.9686,
+        "e2e_rate": 0.0189,
+        "approval_rate": 0.1093
+      }
+    }
+  ]
+}
