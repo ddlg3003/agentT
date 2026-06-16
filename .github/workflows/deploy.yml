@@ -1,0 +1,185 @@
+name: Build & Deploy to GreenNode
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (leave empty for timestamp)"
+        required: false
+
+env:
+  CR_REGISTRY: vcr.vngcloud.vn
+  CR_REPO: vcr.vngcloud.vn/111480-abp111809/agentt
+  RUNTIME_ID: runtime-1850254c-172e-414f-ae49-5e411474a6fd
+  RUNTIME_FLAVOR: runtime-s2-general-2x4
+  ENDPOINT: https://endpoint-86b8f5b3-2e88-4b02-adc6-8f51773957ce.agentbase-runtime.aiplatform.vngcloud.vn
+
+jobs:
+  build-push:
+    name: Build & Push image
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "tag=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=v$(date -u +%Y%m%d%H%M%S)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU (multi-arch support)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to VNG Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.CR_REGISTRY }}
+          username: ${{ secrets.VCR_USERNAME }}
+          password: ${{ secrets.VCR_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.CR_REPO }}:${{ steps.tag.outputs.tag }}
+          # Build cache via GH Actions cache backend
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Update GreenNode runtime
+    runs-on: ubuntu-latest
+    needs: build-push
+
+    steps:
+      - name: Update runtime
+        env:
+          GREENNODE_CLIENT_ID: ${{ secrets.GREENNODE_CLIENT_ID }}
+          GREENNODE_CLIENT_SECRET: ${{ secrets.GREENNODE_CLIENT_SECRET }}
+          LLM_PROVIDER: ${{ secrets.LLM_PROVIDER }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_BASE_URL: ${{ secrets.OPENAI_BASE_URL }}
+          OPENAI_MODEL: ${{ secrets.OPENAI_MODEL }}
+        run: |
+          set -euo pipefail
+          TAG="${{ needs.build-push.outputs.tag }}"
+          IMAGE="${{ env.CR_REPO }}:${TAG}"
+          IAM_URL="https://iam.api.vngcloud.vn/accounts-api/v2/auth/token"
+          RUNTIME_URL="https://agentbase.api.vngcloud.vn/runtime"
+          CR_URL="https://agentbase.api.vngcloud.vn/cr/api/v1"
+
+          echo "Deploying image: $IMAGE"
+
+          # 1. Get IAM token
+          TOKEN=$(curl -sf -X POST "$IAM_URL" \
+            -u "$GREENNODE_CLIENT_ID:$GREENNODE_CLIENT_SECRET" \
+            -d "grant_type=client_credentials" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            | jq -r '.access_token')
+          [ -z "$TOKEN" ] && echo "ERROR: Failed to get IAM token" && exit 1
+
+          # 2. Get CR credentials for imageAuth
+          CR_CREDS=$(curl -sf "$CR_URL/registry-credential" \
+            -H "Authorization: Bearer $TOKEN")
+          CR_USER=$(echo "$CR_CREDS" | jq -r '.username')
+          CR_PASS=$(echo "$CR_CREDS" | jq -r '.secret')
+
+          # 3. Build request body
+          BODY=$(jq -n \
+            --arg imageUrl "$IMAGE" \
+            --arg flavorId "${{ env.RUNTIME_FLAVOR }}" \
+            --arg llmProvider "$LLM_PROVIDER" \
+            --arg anthropicKey "$ANTHROPIC_API_KEY" \
+            --arg anthropicModel "$ANTHROPIC_MODEL" \
+            --arg openaiKey "$OPENAI_API_KEY" \
+            --arg openaiBase "$OPENAI_BASE_URL" \
+            --arg openaiModel "$OPENAI_MODEL" \
+            --arg crUser "$CR_USER" \
+            --arg crPass "$CR_PASS" \
+            '{
+              imageUrl: $imageUrl,
+              flavorId: $flavorId,
+              description: "agentt",
+              command: [], args: [],
+              environmentVariables: {
+                PORT: "8080",
+                LLM_PROVIDER: $llmProvider,
+                ANTHROPIC_API_KEY: $anthropicKey,
+                ANTHROPIC_MODEL: $anthropicModel,
+                OPENAI_API_KEY: $openaiKey,
+                OPENAI_BASE_URL: $openaiBase,
+                OPENAI_MODEL: $openaiModel,
+                MOCK_DIR: "./mock",
+                DIGEST_DB_PATH: "./digests.db"
+              },
+              autoscaling: {
+                minReplicas: 1, maxReplicas: 1,
+                cpuUtilization: 50, memoryUtilization: 50
+              },
+              imageAuth: {
+                enabled: true,
+                username: $crUser,
+                password: $crPass
+              }
+            }')
+
+          # 4. PATCH runtime
+          HTTP=$(curl -s -o /tmp/deploy_response.json -w "%{http_code}" \
+            -X PATCH "$RUNTIME_URL/agent-runtimes/${{ env.RUNTIME_ID }}" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$BODY")
+
+          if [ "$HTTP" -ge 400 ]; then
+            echo "ERROR: PATCH returned HTTP $HTTP"
+            jq . /tmp/deploy_response.json || cat /tmp/deploy_response.json
+            exit 1
+          fi
+          echo "Runtime updated (HTTP $HTTP)"
+
+      - name: Health check
+        timeout-minutes: 5
+        run: |
+          echo "Waiting for runtime to become healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${{ env.ENDPOINT }}/health" || echo "000")
+            echo "Attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "Runtime is healthy."
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Health check timed out after 5 minutes."
+          exit 1
+
+      - name: Post summary
+        if: always()
+        run: |
+          TAG="${{ needs.build-push.outputs.tag }}"
+          echo "## Deploy summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| | |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | \`${{ env.CR_REPO }}:${TAG}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Runtime | \`${{ env.RUNTIME_ID }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Endpoint | ${{ env.ENDPOINT }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | ${{ github.sha }} |" >> "$GITHUB_STEP_SUMMARY"
