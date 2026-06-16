@@ -54,7 +54,7 @@ export function Sidebar() {
         </div>
         {runDaily.isPending && (
           <div className="mt-2">
-            <Spinner label="Running agent loop…" />
+            <Spinner timed />
           </div>
         )}
         {runDaily.isError && (

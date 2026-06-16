@@ -98,7 +98,7 @@ export function FollowupPanel({ date }: { date: string }) {
               </span>
             </div>
             {optimistic.answer === null ? (
-              <Spinner label="Thinking…" />
+              <Spinner timed />
             ) : (
               <div className="rounded-2xl rounded-bl-sm bg-slate-50 px-3.5 py-2">
                 <MarkdownView>{optimistic.answer}</MarkdownView>

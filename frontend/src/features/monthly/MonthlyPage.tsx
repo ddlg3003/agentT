@@ -32,7 +32,7 @@ export function MonthlyPage() {
           >
             Synthesize
           </button>
-          {report.isPending && <Spinner label="Running monthly rollup…" />}
+          {report.isPending && <Spinner timed />}
         </div>
         {report.isError && (
           <p className="mt-2 text-sm text-rose-600">
@@ -45,6 +45,22 @@ export function MonthlyPage() {
         <Card
           title={`Report · ${report.data.month}`}
           subtitle={`Synthesized from ${report.data.num_digests} daily digests`}
+          action={
+            <button
+              onClick={() => {
+                const blob = new Blob([report.data!.markdown], { type: "text/markdown" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `monthly-report-${report.data!.month}.md`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              Export as Markdown
+            </button>
+          }
         >
           <MarkdownView>{report.data.markdown}</MarkdownView>
         </Card>

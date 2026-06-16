@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -54,11 +54,48 @@ export function Badge({ children, tone }: { children: ReactNode; tone?: string }
   );
 }
 
-export function Spinner({ label }: { label?: string }) {
+const QUIPS = [
+  "Querying BI data…",
+  "Tracing the conversion funnel…",
+  "Cross-checking Jira tickets…",
+  "Reading through Gitlab MRs…",
+  "Crunching per-partner metrics…",
+  "Thinking really hard right now…",
+  "Almost done writing the narrative…",
+  "Consulting the knowledge base…",
+  "Just a little longer, promise…",
+  "Analyzing month-over-month trends…",
+  "Hmm, this number looks off…",
+  "Synthesizing insights…",
+  "Asking the agent one more thing…",
+  "Double-checking the data…",
+  "Connecting the dots…",
+  "Making sure nothing is missing…",
+];
+
+export function Spinner({ label, timed }: { label?: string; timed?: boolean }) {
+  const [secs, setSecs] = useState(0);
+  const [startIdx] = useState(() => Math.floor(Math.random() * QUIPS.length));
+
+  useEffect(() => {
+    if (!timed) return;
+    const t = setInterval(() => setSecs((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [timed]);
+
+  const quip = QUIPS[(startIdx + Math.floor(secs / 4)) % QUIPS.length];
+
   return (
     <div className="flex items-center gap-2 text-sm text-slate-500">
       <span className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
-      {label ?? "Loading…"}
+      {timed ? (
+        <span>
+          {quip}
+          <span className="ml-1.5 font-mono text-xs tabular-nums text-slate-400">{secs}s</span>
+        </span>
+      ) : (
+        <span>{label ?? "Loading…"}</span>
+      )}
     </div>
   );
 }
